@@ -6,6 +6,12 @@
 #include "UnityStandardBRDF.cginc"
 #include "UnityStandardUtils.cginc"
 
+#define SSR_MINIMUM_ATTENUATION .275
+#define SSR_ATTENUATION_SCALE (1. - SSR_MINIMUM_ATTENUATION)
+
+#define SSR_VIGNETTE_INTENSITY .7
+#define SSR_VIGNETTE_SMOOTHNESS .25
+
 struct Input
 {
     float4 vertex : POSITION;
@@ -90,6 +96,8 @@ float2 _TargetSize;
 
 float _MaximumMarchDistance;
 
+float _Attenuation;
+
 float _LOD;
 float _BlurPyramidLODCount;
 
@@ -118,6 +126,22 @@ float3 getViewSpacePosition(in float2 uv)
     return float3((2. * uv - 1.) / float2(_ProjectionMatrix[0][0], _ProjectionMatrix[1][1]), -1.) * depth;
 }
 */
+
+float attenuate(in float2 uv)
+{
+    float offset = min(1. - max(uv.x, uv.y), min(uv.x, uv.y));
+
+    float result = offset / (SSR_ATTENUATION_SCALE * _Attenuation + SSR_MINIMUM_ATTENUATION);
+    result = saturate(result);
+
+    return pow(result, .5);
+}
+
+float vignette(in float2 uv)
+{
+    float2 k = abs(uv - .5) * SSR_VIGNETTE_INTENSITY;
+    return pow(saturate(1. - dot(k, k)), SSR_VIGNETTE_SMOOTHNESS);
+}
 
 float3 getViewSpacePosition(in float2 uv)
 {
@@ -281,13 +305,21 @@ float4 test(in Varyings input) : SV_Target
 
     Result result = march(ray);
 
-    return float4(lerp(input.uv, result.uv, (float) result.isHit), 0., 1.);
+    return float4(result.uv, 0., (float) result.isHit);
 }
 
 float4 resolve(in Varyings input) : SV_Target
 {
     float4 hit = _Test.Load(int3((int2) (input.uv * _Test_TexelSize.zw), 0));
-    return _MainTex.SampleLevel(sampler_MainTex, hit.xy, 0.);
+
+    if (hit.w == 0.)
+        return _MainTex.Sample(sampler_MainTex, input.uv);
+
+    float4 color = _MainTex.SampleLevel(sampler_MainTex, hit.xy, 0.);
+
+    color *= attenuate(hit.xy) * vignette(hit.xy);
+
+    return color;
 }
 
 float4 blur(in Varyings input) : SV_Target

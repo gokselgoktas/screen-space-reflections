@@ -19,6 +19,9 @@ public class ScreenSpaceReflections : MonoBehaviour
     [Range(0, 4)]
     public int backFaceDepthTextureDownsampleAmount = 1;
 
+    [Range(0f, 1f)]
+    public float attenuation = .25f;
+
     private enum Pass
     {
         Test,
@@ -213,6 +216,8 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetMatrix("_ProjectionMatrix", projectionMatrix);
         material.SetMatrix("_InverseProjectionMatrix", projectionMatrix.inverse);
         material.SetMatrix("_ScreenSpaceProjectionMatrix", screenSpaceProjectionMatrix);
+
+        material.SetFloat("_Attenuation", attenuation);
 
         material.SetFloat("_MaximumMarchDistance", maximumMarchDistance);
         material.SetFloat("_BlurPyramidLODCount", lodCount);
