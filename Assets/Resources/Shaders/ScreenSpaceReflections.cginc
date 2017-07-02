@@ -54,6 +54,7 @@ Texture2D _CameraGBufferTexture2; // normal.xyz 2. * g[2].rgb - 1.
 
 Texture2D _Noise;
 
+Texture2D _Test;
 Texture2D _Resolve;
 
 SamplerState sampler_MainTex;
@@ -68,6 +69,7 @@ SamplerState sampler_CameraGBufferTexture2;
 
 SamplerState sampler_Noise;
 
+SamplerState sampler_Test;
 SamplerState sampler_Resolve;
 
 int _MaximumIterationCount;
@@ -76,8 +78,11 @@ int _BinarySearchIterationCount;
 float _MaximumMarchDistance;
 
 float4 _MainTex_TexelSize;
+
 float4 _CameraDepthTexture_TexelSize;
 float4 _CameraBackFaceDepthTexture_TexelSize;
+
+float4 _Test_TexelSize;
 
 float4x4 _ViewMatrix;
 float4x4 _InverseViewMatrix;
@@ -143,7 +148,7 @@ bool query(in float2 z, float2 uv)
 }
 
 /* Heavily adapted from McGuire and Mara's original implementation
-    * http://casual-effects.blogspot.com/2014/08/screen-space-ray-tracing.html */
+ * http://casual-effects.blogspot.com/2014/08/screen-space-ray-tracing.html */
 Result march(in Ray ray)
 {
     Result result;
@@ -271,9 +276,15 @@ float4 test(in Varyings input) : SV_Target
     Result result = march(ray);
 
     if (result.isHit)
-        return _MainTex.Sample(sampler_MainTex, result.uv);
+        return float4(result.uv, 0., 1.);
 
-    return _MainTex.Sample(sampler_MainTex, input.uv);
+    return float4(input.uv, 0., 1.);
+}
+
+float4 resolve(in Varyings input) : SV_Target
+{
+    float4 hit = _Test.Load(int3((int2) (input.uv * _Test_TexelSize.zw), 0));
+    return _MainTex.SampleLevel(sampler_MainTex, hit.xy, 0.);
 }
 
 float4 composite(in Varyings input) : SV_Target

@@ -14,11 +14,15 @@ public class ScreenSpaceReflections : MonoBehaviour
     public float maximumMarchDistance = 75f;
 
     [Range(0, 4)]
-    public int backFaceDepthTextureDownsample = 1;
+    public int rayMarchingDownsampleAmount = 1;
+
+    [Range(0, 4)]
+    public int backFaceDepthTextureDownsampleAmount = 1;
 
     private enum Pass
     {
         Test,
+        Resolve,
         Composite
     }
 
@@ -94,6 +98,7 @@ public class ScreenSpaceReflections : MonoBehaviour
 
     private RenderTexture m_BackFaceDepthTexture;
 
+    private RenderTexture m_Test;
     private RenderTexture m_Resolve;
 
     void OnEnable()
@@ -113,6 +118,12 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_BackFaceCamera = null;
         }
 
+        if (m_Test != null)
+        {
+            m_Test.Release();
+            m_Test = null;
+        }
+
         if (m_Resolve != null)
         {
             m_Resolve.Release();
@@ -122,8 +133,8 @@ public class ScreenSpaceReflections : MonoBehaviour
 
     void OnPreCull()
     {
-        int width = camera.pixelWidth >> backFaceDepthTextureDownsample;
-        int height = camera.pixelWidth >> backFaceDepthTextureDownsample;
+        int width = camera.pixelWidth >> backFaceDepthTextureDownsampleAmount;
+        int height = camera.pixelWidth >> backFaceDepthTextureDownsampleAmount;
 
         m_BackFaceDepthTexture = RenderTexture.GetTemporary(width, height, 16, RenderTextureFormat.RHalf);
 
@@ -141,7 +152,23 @@ public class ScreenSpaceReflections : MonoBehaviour
     [ImageEffectOpaque]
     void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
+        int width = source.width >> rayMarchingDownsampleAmount;
+        int height = source.height >> rayMarchingDownsampleAmount;
+
         int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height));
+
+        if (m_Test == null || (m_Test.width != width || m_Test.height != height))
+        {
+            if (m_Test != null)
+                m_Test.Release();
+
+            m_Test = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf);
+            m_Test.filterMode = FilterMode.Point;
+
+            m_Test.Create();
+
+            m_Test.hideFlags = HideFlags.HideAndDontSave;
+        }
 
         if (m_Resolve == null || (m_Resolve.width != size || m_Resolve.height != size))
         {
@@ -163,6 +190,8 @@ public class ScreenSpaceReflections : MonoBehaviour
             material.SetTexture("_CameraBackFaceDepthTexture", m_BackFaceDepthTexture);
 
         material.SetTexture("_Noise", noise);
+
+        material.SetTexture("_Test", m_Test);
         material.SetTexture("_Resolve", m_Resolve);
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
@@ -186,7 +215,8 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetInt("_MaximumIterationCount", maximumIterationCount);
         material.SetInt("_BinarySearchIterationCount", binarySearchIterationCount);
 
-        Graphics.Blit(source, m_Resolve, material, (int) Pass.Test);
+        Graphics.Blit(source, m_Test, material, (int) Pass.Test);
+        Graphics.Blit(source, m_Resolve, material, (int) Pass.Resolve);
         Graphics.Blit(source, destination, material, (int) Pass.Composite);
     }
 

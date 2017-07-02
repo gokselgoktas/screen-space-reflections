@@ -293,10 +293,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1d66163e2d9d41d1b3e4d345239102f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maximumIterationCount: 10
+  maximumIterationCount: 15
   binarySearchIterationCount: 5
   maximumMarchDistance: 75
-  backFaceDepthTextureDownsample: 1
+  rayMarchingDownsampleAmount: 1
+  backFaceDepthTextureDownsampleAmount: 1
 --- !u!1 &1743816215
 GameObject:
   m_ObjectHideFlags: 0
@@ -375,7 +376,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1743816215}
   m_LocalRotation: {x: 0, y: 0.38268343, z: 0, w: 0.92387956}
-  m_LocalPosition: {x: 7.5, y: 2.5, z: 50}
+  m_LocalPosition: {x: 0, y: 2.5, z: 0}
   m_LocalScale: {x: 5, y: 5, z: 5}
   m_Children: []
   m_Father: {fileID: 0}
