@@ -54,6 +54,8 @@ Texture2D _CameraGBufferTexture2; // normal.xyz 2. * g[2].rgb - 1.
 
 Texture2D _Noise;
 
+Texture2D _Resolve;
+
 SamplerState sampler_MainTex;
 
 SamplerState sampler_CameraDepthTexture;
@@ -66,8 +68,11 @@ SamplerState sampler_CameraGBufferTexture2;
 
 SamplerState sampler_Noise;
 
+SamplerState sampler_Resolve;
+
 int _MaximumIterationCount;
 int _BinarySearchIterationCount;
+
 float _MaximumMarchDistance;
 
 float4 _MainTex_TexelSize;
@@ -134,7 +139,7 @@ bool query(in float2 z, float2 uv)
         _CameraBackFaceDepthTexture.SampleLevel(sampler_CameraBackFaceDepthTexture, uv, 0.).r * -_ProjectionParams.z
     );
 
-    return step(z.y, depths.x) * step(depths.y - .0125, z.x);
+    return step(z.y, depths.x) /* step(depths.y - .0125, z.x) */;
 }
 
 /* Heavily adapted from McGuire and Mara's original implementation
@@ -269,6 +274,53 @@ float4 test(in Varyings input) : SV_Target
         return _MainTex.Sample(sampler_MainTex, result.uv);
 
     return _MainTex.Sample(sampler_MainTex, input.uv);
+}
+
+float4 composite(in Varyings input) : SV_Target
+{
+    float z = _CameraDepthTexture.SampleLevel(sampler_CameraDepthTexture, input.uv, 0.).r;
+
+    if (Linear01Depth(z) > .999)
+		return _MainTex.Sample(sampler_MainTex, input.uv);
+
+    float4 gbuffer0 = _CameraGBufferTexture0.Sample(sampler_CameraGBufferTexture0, input.uv);
+    float4 gbuffer1 = _CameraGBufferTexture1.Sample(sampler_CameraGBufferTexture1, input.uv);
+    float4 gbuffer2 = _CameraGBufferTexture2.Sample(sampler_CameraGBufferTexture2, input.uv);
+
+    float oneMinusReflectivity = 0.;
+    EnergyConservationBetweenDiffuseAndSpecular(gbuffer0.rgb, gbuffer1.rgb, oneMinusReflectivity);
+
+    float3 normal = 2. * gbuffer2.rgb - 1.;
+    float3 position = getViewSpacePosition(input.uv);
+
+    float3 eye = mul((float3x3) _InverseViewMatrix, normalize(position));
+    position = mul(_InverseViewMatrix, float4(position, 1.)).xyz;
+
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * 0. /* todo */);
+
+    float confidence = resolve.w;
+    confidence *= saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
+
+    UnityLight light;
+    light.color = 0.;
+    light.dir = 0.;
+    light.ndotl = 0.;
+
+    UnityIndirect indirect;
+    indirect.diffuse = 0.;
+    indirect.specular = resolve.rgb;
+
+    resolve.rgb = UNITY_BRDF_PBS(gbuffer0.rgb, gbuffer1.rgb, oneMinusReflectivity, gbuffer1.a, normal, -eye, light, indirect).rgb;
+
+    float4 reflectionProbes = _CameraReflectionsTexture.Sample(sampler_CameraReflectionsTexture, input.uv);
+
+    float4 color = _MainTex.Sample(sampler_MainTex, input.uv);
+    color.rgb = max(0., color.rgb - reflectionProbes.rgb);
+
+    resolve.rgb = lerp(reflectionProbes, resolve.rgb, confidence);
+    color.rgb += resolve.rgb * gbuffer0.a;
+
+    return color;
 }
 
 #endif

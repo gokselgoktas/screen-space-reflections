@@ -16,6 +16,12 @@ public class ScreenSpaceReflections : MonoBehaviour
     [Range(0, 4)]
     public int backFaceDepthTextureDownsample = 1;
 
+    private enum Pass
+    {
+        Test,
+        Composite
+    }
+
     private Shader m_Shader;
     public Shader shader
     {
@@ -157,6 +163,7 @@ public class ScreenSpaceReflections : MonoBehaviour
             material.SetTexture("_CameraBackFaceDepthTexture", m_BackFaceDepthTexture);
 
         material.SetTexture("_Noise", noise);
+        material.SetTexture("_Resolve", m_Resolve);
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
 
@@ -179,8 +186,8 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetInt("_MaximumIterationCount", maximumIterationCount);
         material.SetInt("_BinarySearchIterationCount", binarySearchIterationCount);
 
-        Graphics.Blit(source, m_Resolve, material, 0);
-        Graphics.Blit(m_Resolve, destination);
+        Graphics.Blit(source, m_Resolve, material, (int) Pass.Test);
+        Graphics.Blit(source, destination, material, (int) Pass.Composite);
     }
 
     void OnPostRender()
