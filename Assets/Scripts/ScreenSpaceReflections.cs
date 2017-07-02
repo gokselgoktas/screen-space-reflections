@@ -88,6 +88,8 @@ public class ScreenSpaceReflections : MonoBehaviour
 
     private RenderTexture m_BackFaceDepthTexture;
 
+    private RenderTexture m_Resolve;
+
     void OnEnable()
     {
 #if !UNITY_5_4_OR_NEWER
@@ -99,10 +101,16 @@ public class ScreenSpaceReflections : MonoBehaviour
 
     void OnDisable()
     {
-        if (m_BackFaceCamera)
+        if (m_BackFaceCamera != null)
         {
             DestroyImmediate(m_BackFaceCamera.gameObject);
             m_BackFaceCamera = null;
+        }
+
+        if (m_Resolve != null)
+        {
+            m_Resolve.Release();
+            m_Resolve = null;
         }
     }
 
@@ -127,6 +135,24 @@ public class ScreenSpaceReflections : MonoBehaviour
     [ImageEffectOpaque]
     void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
+        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height));
+
+        if (m_Resolve == null || (m_Resolve.width != size || m_Resolve.height != size))
+        {
+            if (m_Resolve != null)
+                m_Resolve.Release();
+
+            m_Resolve = new RenderTexture(size, size, 0, RenderTextureFormat.ARGBHalf);
+            m_Resolve.filterMode = FilterMode.Bilinear;
+
+            m_Resolve.useMipMap = false; /* todo */
+            m_Resolve.autoGenerateMips = false; /* todo */
+
+            m_Resolve.Create();
+
+            m_Resolve.hideFlags = HideFlags.HideAndDontSave;
+        }
+
         if (m_BackFaceDepthTexture)
             material.SetTexture("_CameraBackFaceDepthTexture", m_BackFaceDepthTexture);
 
@@ -153,7 +179,8 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetInt("_MaximumIterationCount", maximumIterationCount);
         material.SetInt("_BinarySearchIterationCount", binarySearchIterationCount);
 
-        Graphics.Blit(source, destination, material, 0);
+        Graphics.Blit(source, m_Resolve, material, 0);
+        Graphics.Blit(m_Resolve, destination);
     }
 
     void OnPostRender()
