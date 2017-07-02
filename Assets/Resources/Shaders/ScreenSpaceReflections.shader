@@ -32,6 +32,16 @@
         Pass
         {
             CGPROGRAM
+            #pragma target 3.0
+            #pragma vertex vertex
+            #pragma fragment blur
+            #include "ScreenSpaceReflections.cginc"
+            ENDCG
+        }
+
+        Pass
+        {
+            CGPROGRAM
             #pragma target 4.5
             #pragma vertex vertex
             #pragma fragment composite

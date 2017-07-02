@@ -23,6 +23,7 @@ public class ScreenSpaceReflections : MonoBehaviour
     {
         Test,
         Resolve,
+        Blur,
         Composite
     }
 
@@ -101,6 +102,8 @@ public class ScreenSpaceReflections : MonoBehaviour
     private RenderTexture m_Test;
     private RenderTexture m_Resolve;
 
+    private RenderTexture[] m_Temporaries;
+
     void OnEnable()
     {
 #if !UNITY_5_4_OR_NEWER
@@ -155,7 +158,8 @@ public class ScreenSpaceReflections : MonoBehaviour
         int width = source.width >> rayMarchingDownsampleAmount;
         int height = source.height >> rayMarchingDownsampleAmount;
 
-        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height));
+        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height)) >> 1;
+        int lodCount = (int) Mathf.Floor(Mathf.Log(size, 2f) - 3f);
 
         if (m_Test == null || (m_Test.width != width || m_Test.height != height))
         {
@@ -176,10 +180,10 @@ public class ScreenSpaceReflections : MonoBehaviour
                 m_Resolve.Release();
 
             m_Resolve = new RenderTexture(size, size, 0, RenderTextureFormat.ARGBHalf);
-            m_Resolve.filterMode = FilterMode.Bilinear;
+            m_Resolve.filterMode = FilterMode.Trilinear;
 
-            m_Resolve.useMipMap = false; /* todo */
-            m_Resolve.autoGenerateMips = false; /* todo */
+            m_Resolve.useMipMap = true;
+            m_Resolve.autoGenerateMips = false;
 
             m_Resolve.Create();
 
@@ -211,12 +215,42 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetMatrix("_ScreenSpaceProjectionMatrix", screenSpaceProjectionMatrix);
 
         material.SetFloat("_MaximumMarchDistance", maximumMarchDistance);
+        material.SetFloat("_BlurPyramidLODCount", lodCount);
 
         material.SetInt("_MaximumIterationCount", maximumIterationCount);
         material.SetInt("_BinarySearchIterationCount", binarySearchIterationCount);
 
         Graphics.Blit(source, m_Test, material, (int) Pass.Test);
         Graphics.Blit(source, m_Resolve, material, (int) Pass.Resolve);
+
+        if (m_Temporaries == null)
+            m_Temporaries = new RenderTexture[2];
+
+        for (int i = 1; i < lodCount; ++i)
+        {
+            size >>= 1;
+
+            if (size == 0)
+                size = 1;
+
+            m_Temporaries[0] = RenderTexture.GetTemporary(size, size, 0, RenderTextureFormat.ARGBHalf);
+            m_Temporaries[1] = RenderTexture.GetTemporary(size, size, 0, RenderTextureFormat.ARGBHalf);
+
+            material.SetFloat("_LOD", (float) i - 1f);
+            material.SetVector("_TargetSize", Vector2.one / (float) size);
+
+            material.SetVector("_BlurDirection", Vector2.right);
+            Graphics.Blit(m_Resolve, m_Temporaries[0], material, (int) Pass.Blur);
+
+            material.SetVector("_BlurDirection", Vector2.down);
+            Graphics.Blit(m_Temporaries[0], m_Temporaries[1], material, (int) Pass.Blur);
+
+            Graphics.CopyTexture(m_Temporaries[1], 0, 0, m_Resolve, 0, i);
+
+            RenderTexture.ReleaseTemporary(m_Temporaries[0]);
+            RenderTexture.ReleaseTemporary(m_Temporaries[1]);
+        }
+
         Graphics.Blit(source, destination, material, (int) Pass.Composite);
     }
 

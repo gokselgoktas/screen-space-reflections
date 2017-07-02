@@ -72,10 +72,11 @@ SamplerState sampler_Noise;
 SamplerState sampler_Test;
 SamplerState sampler_Resolve;
 
-int _MaximumIterationCount;
-int _BinarySearchIterationCount;
-
-float _MaximumMarchDistance;
+float4x4 _ViewMatrix;
+float4x4 _InverseViewMatrix;
+float4x4 _ProjectionMatrix;
+float4x4 _InverseProjectionMatrix;
+float4x4 _ScreenSpaceProjectionMatrix;
 
 float4 _MainTex_TexelSize;
 
@@ -84,11 +85,16 @@ float4 _CameraBackFaceDepthTexture_TexelSize;
 
 float4 _Test_TexelSize;
 
-float4x4 _ViewMatrix;
-float4x4 _InverseViewMatrix;
-float4x4 _ProjectionMatrix;
-float4x4 _InverseProjectionMatrix;
-float4x4 _ScreenSpaceProjectionMatrix;
+float2 _BlurDirection;
+float2 _TargetSize;
+
+float _MaximumMarchDistance;
+
+float _LOD;
+float _BlurPyramidLODCount;
+
+int _MaximumIterationCount;
+int _BinarySearchIterationCount;
 
 Varyings vertex(in Input input)
 {
@@ -287,6 +293,17 @@ float4 resolve(in Varyings input) : SV_Target
     return _MainTex.SampleLevel(sampler_MainTex, hit.xy, 0.);
 }
 
+float4 blur(in Varyings input) : SV_Target
+{
+    return (
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv - 3.2307692308 * _BlurDirection * _TargetSize, _LOD)) * .0702702703 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv - 1.3846153846 * _BlurDirection * _TargetSize, _LOD)) * .3162162162 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv, _LOD)) * .2270270270 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv + 1.3846153846 * _BlurDirection * _TargetSize, _LOD)) * .3162162162 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv + 3.2307692308 * _BlurDirection * _TargetSize, _LOD)) * .0702702703
+    );
+}
+
 float4 composite(in Varyings input) : SV_Target
 {
     float z = _CameraDepthTexture.SampleLevel(sampler_CameraDepthTexture, input.uv, 0.).r;
@@ -307,7 +324,7 @@ float4 composite(in Varyings input) : SV_Target
     float3 eye = mul((float3x3) _InverseViewMatrix, normalize(position));
     position = mul(_InverseViewMatrix, float4(position, 1.)).xyz;
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * 0. /* todo */);
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount);
 
     float confidence = resolve.w;
     confidence *= saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
