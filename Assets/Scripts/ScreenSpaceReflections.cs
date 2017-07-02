@@ -200,8 +200,8 @@ public class ScreenSpaceReflections : MonoBehaviour
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
 
-        screenSpaceProjectionMatrix.SetRow(0, new Vector4(source.width * 0.5f, 0f, 0f, source.width * 0.5f));
-        screenSpaceProjectionMatrix.SetRow(1, new Vector4(0f, source.height * 0.5f, 0f, source.height * 0.5f));
+        screenSpaceProjectionMatrix.SetRow(0, new Vector4(width * 0.5f, 0f, 0f, width * 0.5f));
+        screenSpaceProjectionMatrix.SetRow(1, new Vector4(0f, height * 0.5f, 0f, height * 0.5f));
         screenSpaceProjectionMatrix.SetRow(2, new Vector4(0f, 0f, 1f, 0f));
         screenSpaceProjectionMatrix.SetRow(3, new Vector4(0f, 0f, 0f, 1f));
 

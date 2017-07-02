@@ -187,7 +187,7 @@ Result march(in Ray ray)
     segment.end *= homogenizers.y;
 
     float4 endPoints = float4(r.xy, q.xy) * homogenizers.xxyy;
-    endPoints.zw += step(getSquaredDistance(endPoints.xy, endPoints.zw), .0001) * max(_MainTex_TexelSize.x, _MainTex_TexelSize.y);
+    endPoints.zw += step(getSquaredDistance(endPoints.xy, endPoints.zw), .0001) * max(_Test_TexelSize.x, _Test_TexelSize.y);
 
     float2 displacement = endPoints.zw - endPoints.xy;
 
@@ -211,7 +211,7 @@ Result march(in Ray ray)
 
     float jitter = _Noise.SampleLevel(sampler_Noise, dot(r.xy, 1.) * .25, 0.) * 3.;
 
-    derivatives *= 15. * stride + jitter;
+    derivatives *= 10. * stride + jitter;
     segment.direction *= stride;
 
     float2 z = 0.;
@@ -249,7 +249,7 @@ Result march(in Ray ray)
         if (isPermuted)
             result.uv = result.uv.yx;
 
-        result.uv *= _MainTex_TexelSize.xy;
+        result.uv *= _Test_TexelSize.xy;
 
         result.isHit = query(z, result.uv);
 
@@ -281,10 +281,7 @@ float4 test(in Varyings input) : SV_Target
 
     Result result = march(ray);
 
-    if (result.isHit)
-        return float4(result.uv, 0., 1.);
-
-    return float4(input.uv, 0., 1.);
+    return float4(lerp(input.uv, result.uv, (float) result.isHit), 0., 1.);
 }
 
 float4 resolve(in Varyings input) : SV_Target
