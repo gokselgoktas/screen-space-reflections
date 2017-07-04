@@ -174,12 +174,12 @@ bool query(in float2 z, float2 uv)
         _CameraBackFaceDepthTexture.SampleLevel(sampler_CameraBackFaceDepthTexture, uv, 0.).r * -_ProjectionParams.z
     );
 
-    return step(z.y, depths.x) /* step(depths.y - .0125, z.x) */;
+    return step(z.y, depths.x) * step(depths.y - .0125, z.x);
 }
 
 /* Heavily adapted from McGuire and Mara's original implementation
  * http://casual-effects.blogspot.com/2014/08/screen-space-ray-tracing.html */
-Result march(in Ray ray)
+Result march(in Ray ray, in Varyings input)
 {
     Result result;
 
@@ -231,23 +231,29 @@ Result march(in Ray ray)
     segment.direction = (segment.end - segment.start) * normalizer;
     float4 derivatives = float4(float2(direction, displacement.y * normalizer), (homogenizers.y - homogenizers.x) * normalizer, segment.direction.z);
 
-    float stride = 2. - min(1., -segment.start.z * .1);
+    float stride = 2. - min(1., -ray.origin.z * .01);
 
-    float jitter = _Noise.SampleLevel(sampler_Noise, dot(r.xy, 1.) * .25, 0.) * 3.;
+    // float2 size = input.uv * _Test_TexelSize.zw;
+    // float hash = (size.x + size.y) * .25;
+	// float jitter = fmod(hash, 1.);
+	float jitter = _Noise.SampleLevel(sampler_Noise, input.uv * 3., 0.).r;
 
-    derivatives *= 10. * stride + jitter;
+    stride = stride * 15.;
+
+    derivatives *= stride;
     segment.direction *= stride;
 
     float2 z = 0.;
-    float4 tracker = float4(endPoints.xy, homogenizers.x, segment.start.z);
+    float4 tracker = float4(endPoints.xy, homogenizers.x, segment.start.z) + derivatives * jitter;
 
-    for (; result.iterationCount < _MaximumIterationCount; ++result.iterationCount)
+    UNITY_UNROLL
+    for (uint i = 0; i < 12; ++i)
     {
-        if (any(result.uv < 0.) || any(result.uv > 1.))
+        /*if (any(result.uv < 0.) || any(result.uv > 1.))
         {
             result.isHit = false;
             return result;
-        }
+        }*/
 
         tracker += derivatives;
 
@@ -281,6 +287,11 @@ Result march(in Ray ray)
             break;
     }
 
+    segment.start.xy += segment.direction.xy * (float) result.iterationCount;
+    segment.start.z = tracker.w;
+
+    result.position = segment.start / tracker.z;
+
     return result;
 }
 
@@ -303,21 +314,22 @@ float4 test(in Varyings input) : SV_Target
 
     ray.direction = normalize(reflect(normalize(ray.origin), normal));
 
-    Result result = march(ray);
+    Result result = march(ray, input);
 
     return float4(result.uv, 0., (float) result.isHit);
 }
 
 float4 resolve(in Varyings input) : SV_Target
 {
-    float4 hit = _Test.Load(int3((int2) (input.uv * _Test_TexelSize.zw), 0));
+    float4 test = _Test.Load(int3((int2) (input.uv * _Test_TexelSize.zw), 0));
 
-    if (hit.w == 0.)
+    if (test.w == 0.)
         return _MainTex.Sample(sampler_MainTex, input.uv);
 
-    float4 color = _MainTex.SampleLevel(sampler_MainTex, hit.xy, 0.);
+    float4 color = _MainTex.SampleLevel(sampler_MainTex, test.xy, 0.);
 
-    color *= attenuate(hit.xy) * vignette(hit.xy);
+    color.a = test.w * attenuate(test.xy) * vignette(test.xy);
+    color *= color.a;
 
     return color;
 }
@@ -353,9 +365,9 @@ float4 composite(in Varyings input) : SV_Target
     float3 eye = mul((float3x3) _InverseViewMatrix, normalize(position));
     position = mul(_InverseViewMatrix, float4(position, 1.)).xyz;
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount);
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * 0. + .55);
 
-    float confidence = resolve.w;
+    float confidence = resolve.a;
     confidence *= saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
 
     UnityLight light;
@@ -374,7 +386,7 @@ float4 composite(in Varyings input) : SV_Target
     float4 color = _MainTex.Sample(sampler_MainTex, input.uv);
     color.rgb = max(0., color.rgb - reflectionProbes.rgb);
 
-    resolve.rgb = lerp(reflectionProbes, resolve.rgb, confidence);
+    resolve.rgb = lerp(reflectionProbes.rgb, resolve.rgb, confidence);
     color.rgb += resolve.rgb * gbuffer0.a;
 
     return color;

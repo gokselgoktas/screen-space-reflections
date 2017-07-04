@@ -17,6 +17,9 @@ public class ScreenSpaceReflections : MonoBehaviour
     public int rayMarchingDownsampleAmount = 1;
 
     [Range(0, 4)]
+    public int resolveDownsampleAmount = 1;
+
+    [Range(0, 4)]
     public int backFaceDepthTextureDownsampleAmount = 1;
 
     [Range(0f, 1f)]
@@ -161,15 +164,15 @@ public class ScreenSpaceReflections : MonoBehaviour
         int width = source.width >> rayMarchingDownsampleAmount;
         int height = source.height >> rayMarchingDownsampleAmount;
 
-        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height)) >> 1;
-        int lodCount = (int) Mathf.Floor(Mathf.Log(size, 2f) - 3f);
+        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height)) >> resolveDownsampleAmount;
+        int lodCount = (int) Mathf.Floor(Mathf.Log(size, 2f) - 3f) - 3;
 
-        if (m_Test == null || (m_Test.width != width || m_Test.height != height))
+        if (m_Test == null || (m_Test.width != size || m_Test.height != size))
         {
             if (m_Test != null)
                 m_Test.Release();
 
-            m_Test = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf);
+            m_Test = new RenderTexture(size, size, 0, RenderTextureFormat.ARGBHalf);
             m_Test.filterMode = FilterMode.Point;
 
             m_Test.Create();
@@ -203,8 +206,8 @@ public class ScreenSpaceReflections : MonoBehaviour
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
 
-        screenSpaceProjectionMatrix.SetRow(0, new Vector4(width * 0.5f, 0f, 0f, width * 0.5f));
-        screenSpaceProjectionMatrix.SetRow(1, new Vector4(0f, height * 0.5f, 0f, height * 0.5f));
+        screenSpaceProjectionMatrix.SetRow(0, new Vector4(size * 0.5f, 0f, 0f, size * 0.5f));
+        screenSpaceProjectionMatrix.SetRow(1, new Vector4(0f, size * 0.5f, 0f, size * 0.5f));
         screenSpaceProjectionMatrix.SetRow(2, new Vector4(0f, 0f, 1f, 0f));
         screenSpaceProjectionMatrix.SetRow(3, new Vector4(0f, 0f, 0f, 1f));
 
