@@ -12,7 +12,7 @@
         Pass
         {
             CGPROGRAM
-            #pragma target 3.0
+            #pragma target 5.0
             #pragma vertex vertex
             #pragma fragment test
             #include "ScreenSpaceReflections.cginc"
@@ -22,7 +22,7 @@
         Pass
         {
             CGPROGRAM
-            #pragma target 4.5
+            #pragma target 5.0
             #pragma vertex vertex
             #pragma fragment resolve
             #include "ScreenSpaceReflections.cginc"
@@ -32,7 +32,7 @@
         Pass
         {
             CGPROGRAM
-            #pragma target 3.0
+            #pragma target 5.0
             #pragma vertex vertex
             #pragma fragment blur
             #include "ScreenSpaceReflections.cginc"
@@ -42,7 +42,7 @@
         Pass
         {
             CGPROGRAM
-            #pragma target 4.5
+            #pragma target 5.0
             #pragma vertex vertex
             #pragma fragment composite
             #include "ScreenSpaceReflections.cginc"

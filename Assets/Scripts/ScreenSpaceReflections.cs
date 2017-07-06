@@ -161,18 +161,18 @@ public class ScreenSpaceReflections : MonoBehaviour
     [ImageEffectOpaque]
     void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
-        int width = source.width >> rayMarchingDownsampleAmount;
-        int height = source.height >> rayMarchingDownsampleAmount;
-
-        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height)) >> resolveDownsampleAmount;
+        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height));
         int lodCount = (int) Mathf.Floor(Mathf.Log(size, 2f) - 3f) - 3;
 
-        if (m_Test == null || (m_Test.width != size || m_Test.height != size))
+        int testSize = size >> rayMarchingDownsampleAmount;
+        int resolveSize = size >> resolveDownsampleAmount;
+
+        if (m_Test == null || (m_Test.width != testSize || m_Test.height != testSize))
         {
             if (m_Test != null)
                 m_Test.Release();
 
-            m_Test = new RenderTexture(size, size, 0, RenderTextureFormat.ARGBHalf);
+            m_Test = new RenderTexture(testSize, testSize, 0, RenderTextureFormat.ARGBHalf);
             m_Test.filterMode = FilterMode.Point;
 
             m_Test.Create();
@@ -180,12 +180,12 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_Test.hideFlags = HideFlags.HideAndDontSave;
         }
 
-        if (m_Resolve == null || (m_Resolve.width != size || m_Resolve.height != size))
+        if (m_Resolve == null || (m_Resolve.width != resolveSize || m_Resolve.height != resolveSize))
         {
             if (m_Resolve != null)
                 m_Resolve.Release();
 
-            m_Resolve = new RenderTexture(size, size, 0, RenderTextureFormat.ARGBHalf);
+            m_Resolve = new RenderTexture(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
             m_Resolve.filterMode = FilterMode.Trilinear;
 
             m_Resolve.useMipMap = true;
@@ -206,8 +206,8 @@ public class ScreenSpaceReflections : MonoBehaviour
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
 
-        screenSpaceProjectionMatrix.SetRow(0, new Vector4(size * 0.5f, 0f, 0f, size * 0.5f));
-        screenSpaceProjectionMatrix.SetRow(1, new Vector4(0f, size * 0.5f, 0f, size * 0.5f));
+        screenSpaceProjectionMatrix.SetRow(0, new Vector4(testSize * 0.5f, 0f, 0f, testSize * 0.5f));
+        screenSpaceProjectionMatrix.SetRow(1, new Vector4(0f, testSize * 0.5f, 0f, testSize * 0.5f));
         screenSpaceProjectionMatrix.SetRow(2, new Vector4(0f, 0f, 1f, 0f));
         screenSpaceProjectionMatrix.SetRow(3, new Vector4(0f, 0f, 0f, 1f));
 
@@ -236,16 +236,16 @@ public class ScreenSpaceReflections : MonoBehaviour
 
         for (int i = 1; i < lodCount; ++i)
         {
-            size >>= 1;
+            resolveSize >>= 1;
 
-            if (size == 0)
-                size = 1;
+            if (resolveSize == 0)
+                resolveSize = 1;
 
-            m_Temporaries[0] = RenderTexture.GetTemporary(size, size, 0, RenderTextureFormat.ARGBHalf);
-            m_Temporaries[1] = RenderTexture.GetTemporary(size, size, 0, RenderTextureFormat.ARGBHalf);
+            m_Temporaries[0] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
+            m_Temporaries[1] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
 
             material.SetFloat("_LOD", (float) i - 1f);
-            material.SetVector("_TargetSize", Vector2.one / (float) size);
+            material.SetVector("_TargetSize", Vector2.one / (float) resolveSize);
 
             material.SetVector("_BlurDirection", Vector2.right);
             Graphics.Blit(m_Resolve, m_Temporaries[0], material, (int) Pass.Blur);

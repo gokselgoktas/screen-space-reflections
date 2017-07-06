@@ -204,6 +204,8 @@ GameObject:
   - component: {fileID: 1474920059}
   - component: {fileID: 1474920058}
   - component: {fileID: 1474920064}
+  - component: {fileID: 1474920063}
+  - component: {fileID: 1474920065}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -282,22 +284,65 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1474920063
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 1474920057}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 55cde940191a4461283aef00879b05f8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  backfaceDepthDownsample: 1
+  ssrDownsample: 1
+  blurDownsample: 1
+  iterations: 7
+  binarySearchIterations: 0
+  pixelStride: 30
+  pixelStrideZCutoff: 30
+  pixelZSizeOffset: 0.1
+  maxRayDistance: 50
+  screenEdgeFadeStart: 0.75
+  eyeFadeStart: 0
+  eyeFadeEnd: 1
+  maxBlurRadius: 8
+  BlurQuality: 2
 --- !u!114 &1474920064
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1474920057}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1d66163e2d9d41d1b3e4d345239102f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maximumIterationCount: 10
+  maximumIterationCount: 7
   binarySearchIterationCount: 5
-  maximumMarchDistance: 75
+  maximumMarchDistance: 50
   rayMarchingDownsampleAmount: 1
+  resolveDownsampleAmount: 1
   backFaceDepthTextureDownsampleAmount: 1
+  attenuation: 0.25
+--- !u!114 &1474920065
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 1474920057}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b611c308856e5364bac43bc6c6813f77, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  animateJitter: 0
+  numSteps: 7
+  reflectionEdgeFactor: 0.1
+  smoothnessRange: 1
+  useMipMap: 1
 --- !u!1 &1743816215
 GameObject:
   m_ObjectHideFlags: 0
@@ -376,7 +421,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1743816215}
   m_LocalRotation: {x: 0, y: 0.38268343, z: 0, w: 0.92387956}
-  m_LocalPosition: {x: 0, y: 2.5, z: 10}
+  m_LocalPosition: {x: 0, y: 2.6, z: 3}
   m_LocalScale: {x: 5, y: 5, z: 5}
   m_Children: []
   m_Father: {fileID: 0}

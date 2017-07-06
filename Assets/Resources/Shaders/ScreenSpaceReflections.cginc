@@ -236,9 +236,11 @@ Result march(in Ray ray, in Varyings input)
     // float2 size = input.uv * _Test_TexelSize.zw;
     // float hash = (size.x + size.y) * .25;
 	// float jitter = fmod(hash, 1.);
-	float jitter = _Noise.SampleLevel(sampler_Noise, input.uv * 3., 0.).r;
+    float2 uv = input.uv;
+    uv.y *= _MainTex_TexelSize.w / _MainTex_TexelSize.z;
 
-    stride = stride * 15.;
+    float jitter = 0.;// _Noise.SampleLevel(sampler_Noise, uv * 4., 0.).r;
+    stride *= 6.;
 
     derivatives *= stride;
     segment.direction *= stride;
@@ -247,7 +249,7 @@ Result march(in Ray ray, in Varyings input)
     float4 tracker = float4(endPoints.xy, homogenizers.x, segment.start.z) + derivatives * jitter;
 
     UNITY_UNROLL
-    for (uint i = 0; i < 12; ++i)
+    for (uint i = 0; i < 25; ++i)
     {
         /*if (any(result.uv < 0.) || any(result.uv > 1.))
         {
@@ -261,12 +263,7 @@ Result march(in Ray ray, in Varyings input)
         z.y = tracker.w + derivatives.w * .5;
         z.y /= tracker.z + derivatives.z * .5;
 
-        if (z.y < -_MaximumMarchDistance)
-        {
-            result.isHit = false;
-            return result;
-        }
-
+        UNITY_FLATTEN
         if (z.y > z.x)
         {
             float k = z.x;
@@ -276,21 +273,22 @@ Result march(in Ray ray, in Varyings input)
 
         result.uv = tracker.xy;
 
+        UNITY_FLATTEN
         if (isPermuted)
             result.uv = result.uv.yx;
 
         result.uv *= _Test_TexelSize.xy;
 
-        result.isHit = query(z, result.uv);
+        float depth = -LinearEyeDepth(_CameraDepthTexture.SampleLevel(sampler_CameraDepthTexture, result.uv, 0.).r);
 
-        if (result.isHit)
-            break;
+        UNITY_FLATTEN
+        if (z.y < depth)
+        {
+            result.isHit = true;
+            result.iterationCount = i + 1;
+            return result;
+        }
     }
-
-    segment.start.xy += segment.direction.xy * (float) result.iterationCount;
-    segment.start.z = tracker.w;
-
-    result.position = segment.start / tracker.z;
 
     return result;
 }
@@ -316,7 +314,8 @@ float4 test(in Varyings input) : SV_Target
 
     Result result = march(ray, input);
 
-    return float4(result.uv, 0., (float) result.isHit);
+    float confidence = (float) result.iterationCount / (float) _MaximumIterationCount;
+    return float4(result.uv, confidence, (float) result.isHit);
 }
 
 float4 resolve(in Varyings input) : SV_Target
@@ -328,8 +327,9 @@ float4 resolve(in Varyings input) : SV_Target
 
     float4 color = _MainTex.SampleLevel(sampler_MainTex, test.xy, 0.);
 
-    color.a = test.w * attenuate(test.xy) * vignette(test.xy);
-    color *= color.a;
+    float confidence = test.w * attenuate(test.xy) * vignette(test.xy);
+
+    color.rgb *= confidence;
 
     return color;
 }
@@ -365,10 +365,10 @@ float4 composite(in Varyings input) : SV_Target
     float3 eye = mul((float3x3) _InverseViewMatrix, normalize(position));
     position = mul(_InverseViewMatrix, float4(position, 1.)).xyz;
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * 0. + .55);
+    float4 test = _Test.SampleLevel(sampler_Test, input.uv, 0.);
 
-    float confidence = resolve.a;
-    confidence *= saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z);
+    float confidence = saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
 
     UnityLight light;
     light.color = 0.;
