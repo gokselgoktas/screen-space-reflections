@@ -34,6 +34,16 @@
             CGPROGRAM
             #pragma target 5.0
             #pragma vertex vertex
+            #pragma fragment reproject
+            #include "ScreenSpaceReflections.cginc"
+            ENDCG
+        }
+
+        Pass
+        {
+            CGPROGRAM
+            #pragma target 5.0
+            #pragma vertex vertex
             #pragma fragment blur
             #include "ScreenSpaceReflections.cginc"
             ENDCG

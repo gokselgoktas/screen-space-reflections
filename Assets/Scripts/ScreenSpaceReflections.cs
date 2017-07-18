@@ -29,6 +29,7 @@ public class ScreenSpaceReflections : MonoBehaviour
     {
         Test,
         Resolve,
+        Reproject,
         Blur,
         Composite
     }
@@ -107,6 +108,7 @@ public class ScreenSpaceReflections : MonoBehaviour
 
     private RenderTexture m_Test;
     private RenderTexture m_Resolve;
+    private RenderTexture m_History;
 
     private RenderTexture[] m_Temporaries;
 
@@ -137,6 +139,12 @@ public class ScreenSpaceReflections : MonoBehaviour
         {
             m_Resolve.Release();
             m_Resolve = null;
+        }
+
+        if (m_History != null)
+        {
+            m_History.Release();
+            m_History = null;
         }
     }
 
@@ -196,6 +204,19 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_Resolve.hideFlags = HideFlags.HideAndDontSave;
         }
 
+        if (m_History == null || (m_History.width != resolveSize || m_History.height != resolveSize))
+        {
+            if (m_History != null)
+                m_History.Release();
+
+            m_History = new RenderTexture(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
+            m_History.filterMode = FilterMode.Bilinear;
+
+            m_History.Create();
+
+            m_History.hideFlags = HideFlags.HideAndDontSave;
+        }
+
         if (m_BackFaceDepthTexture)
             material.SetTexture("_CameraBackFaceDepthTexture", m_BackFaceDepthTexture);
 
@@ -203,6 +224,7 @@ public class ScreenSpaceReflections : MonoBehaviour
 
         material.SetTexture("_Test", m_Test);
         material.SetTexture("_Resolve", m_Resolve);
+        material.SetTexture("_History", m_History);
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
 
@@ -225,14 +247,23 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetFloat("_MaximumMarchDistance", maximumMarchDistance);
         material.SetFloat("_BlurPyramidLODCount", lodCount);
 
+        material.SetFloat("_AspectRatio", (float) source.height / (float) source.width);
+
         material.SetInt("_MaximumIterationCount", maximumIterationCount);
         material.SetInt("_BinarySearchIterationCount", binarySearchIterationCount);
 
-        Graphics.Blit(source, m_Test, material, (int) Pass.Test);
-        Graphics.Blit(source, m_Resolve, material, (int) Pass.Resolve);
-
         if (m_Temporaries == null)
             m_Temporaries = new RenderTexture[2];
+
+        m_Temporaries[0] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
+
+        Graphics.Blit(source, m_Test, material, (int) Pass.Test);
+        Graphics.Blit(source, m_Temporaries[0], material, (int) Pass.Resolve);
+        Graphics.Blit(m_Temporaries[0], m_Resolve, material, (int) Pass.Reproject);
+
+        RenderTexture.ReleaseTemporary(m_Temporaries[0]);
+
+        Graphics.CopyTexture(m_Resolve, 0, 0, m_History, 0, 0);
 
         for (int i = 1; i < lodCount; ++i)
         {
