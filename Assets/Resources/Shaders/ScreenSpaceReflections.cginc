@@ -100,7 +100,6 @@ float4 _Test_TexelSize;
 float2 _Jitter;
 
 float2 _BlurDirection;
-float2 _TargetSize;
 
 float _MaximumMarchDistance;
 
@@ -384,11 +383,11 @@ float4 reproject(in Varyings input) : SV_Target
 float4 blur(in Varyings input) : SV_Target
 {
     return (
-        (_MainTex.SampleLevel(sampler_MainTex, input.uv - 3.2307692308 * _BlurDirection * _TargetSize, _LOD)) * .0702702703 +
-        (_MainTex.SampleLevel(sampler_MainTex, input.uv - 1.3846153846 * _BlurDirection * _TargetSize, _LOD)) * .3162162162 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv - 3.2307692308 * _BlurDirection * _MainTex_TexelSize.xy, _LOD)) * .0702702703 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv - 1.3846153846 * _BlurDirection * _MainTex_TexelSize.xy, _LOD)) * .3162162162 +
         (_MainTex.SampleLevel(sampler_MainTex, input.uv, _LOD)) * .2270270270 +
-        (_MainTex.SampleLevel(sampler_MainTex, input.uv + 1.3846153846 * _BlurDirection * _TargetSize, _LOD)) * .3162162162 +
-        (_MainTex.SampleLevel(sampler_MainTex, input.uv + 3.2307692308 * _BlurDirection * _TargetSize, _LOD)) * .0702702703
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv + 1.3846153846 * _BlurDirection * _MainTex_TexelSize.xy, _LOD)) * .3162162162 +
+        (_MainTex.SampleLevel(sampler_MainTex, input.uv + 3.2307692308 * _BlurDirection * _MainTex_TexelSize.xy, _LOD)) * .0702702703
     );
 }
 
@@ -414,7 +413,7 @@ float4 composite(in Varyings input) : SV_Target
 
     float4 test = _Test.SampleLevel(sampler_Test, input.uv, 0.);
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z + 1.);
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z * 0. + .65);
     float confidence = saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
 
     UnityLight light;

@@ -276,7 +276,6 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_Temporaries[1] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
 
             material.SetFloat("_LOD", (float) i - 1f);
-            material.SetVector("_TargetSize", Vector2.one / (float) resolveSize);
 
             material.SetVector("_BlurDirection", Vector2.right);
             Graphics.Blit(m_Resolve, m_Temporaries[0], material, (int) Pass.Blur);
