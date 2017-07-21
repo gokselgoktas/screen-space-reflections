@@ -413,7 +413,7 @@ float4 composite(in Varyings input) : SV_Target
 
     float4 test = _Test.SampleLevel(sampler_Test, input.uv, 0.);
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z * 0. + .65);
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z + 1.);
     float confidence = saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
 
     UnityLight light;
