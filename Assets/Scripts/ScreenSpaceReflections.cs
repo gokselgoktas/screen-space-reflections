@@ -28,6 +28,9 @@ public class ScreenSpaceReflections : MonoBehaviour
     [Range(0f, 30f)]
     public float bandwidth = 7f;
 
+    [Range(0f, 1f)]
+    public float distanceFade = 0f;
+
     private enum Pass
     {
         Test,
@@ -248,6 +251,8 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetFloat("_Attenuation", attenuation);
 
         material.SetFloat("_Bandwidth", bandwidth);
+
+        material.SetFloat("_DistanceFade", distanceFade);
 
         material.SetFloat("_MaximumMarchDistance", maximumMarchDistance);
         material.SetFloat("_BlurPyramidLODCount", lodCount);

@@ -105,6 +105,7 @@ float _Bandwidth;
 float _MaximumMarchDistance;
 
 float _Attenuation;
+float _DistanceFade;
 
 float _LOD;
 float _BlurPyramidLODCount;
@@ -434,7 +435,8 @@ float4 composite(in Varyings input) : SV_Target
     float4 color = _MainTex.Sample(sampler_MainTex, input.uv);
     color.rgb = max(0., color.rgb - reflectionProbes.rgb);
 
-    resolve.rgb = lerp(reflectionProbes.rgb, resolve.rgb, confidence * (1. - resolve.a));
+    float fade = 1. - resolve.a * _DistanceFade;
+    resolve.rgb = lerp(reflectionProbes.rgb, resolve.rgb, confidence * fade);
     color.rgb += resolve.rgb * gbuffer0.a;
 
     return color;
