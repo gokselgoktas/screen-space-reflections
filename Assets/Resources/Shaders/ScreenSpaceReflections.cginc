@@ -341,6 +341,7 @@ float4 resolve(in Varyings input) : SV_Target
     float confidence = test.w * attenuate(test.xy) * vignette(test.xy);
 
     color.rgb *= confidence;
+    color.a = test.z;
 
     return color;
 }
@@ -433,7 +434,7 @@ float4 composite(in Varyings input) : SV_Target
     float4 color = _MainTex.Sample(sampler_MainTex, input.uv);
     color.rgb = max(0., color.rgb - reflectionProbes.rgb);
 
-    resolve.rgb = lerp(reflectionProbes.rgb, resolve.rgb, confidence);
+    resolve.rgb = lerp(reflectionProbes.rgb, resolve.rgb, confidence * (1. - resolve.a));
     color.rgb += resolve.rgb * gbuffer0.a;
 
     return color;
