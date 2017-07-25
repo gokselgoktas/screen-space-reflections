@@ -101,6 +101,7 @@ float2 _Jitter;
 
 float2 _BlurDirection;
 
+float _Bandwidth;
 float _MaximumMarchDistance;
 
 float _Attenuation;
@@ -249,7 +250,7 @@ Result march(in Ray ray, in Varyings input)
     uv.y *= 0.5625;
 
     float jitter = _Noise.SampleLevel(sampler_Noise, uv + _WorldSpaceCameraPos.xz, 0.).r;
-    stride *= 25.;
+    stride *= _Bandwidth;
 
     derivatives *= stride;
     segment.direction *= stride;
@@ -257,8 +258,8 @@ Result march(in Ray ray, in Varyings input)
     float2 z = 0.;
     float4 tracker = float4(endPoints.xy, homogenizers.x, segment.start.z) + derivatives * jitter;
 
-    UNITY_UNROLL
-    for (uint i = 0; i < 16; ++i)
+    // UNITY_UNROLL
+    for (int i = 0; i < _MaximumIterationCount; ++i)
     {
         if (any(result.uv < 0.) || any(result.uv > 1.))
         {
@@ -413,7 +414,7 @@ float4 composite(in Varyings input) : SV_Target
 
     float4 test = _Test.SampleLevel(sampler_Test, input.uv, 0.);
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z + 1.);
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z + .5);
     float confidence = saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
 
     UnityLight light;
