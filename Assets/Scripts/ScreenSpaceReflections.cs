@@ -25,7 +25,7 @@ public class ScreenSpaceReflections : MonoBehaviour
     [Range(0f, 1f)]
     public float attenuation = .25f;
 
-    [Range(0f, 30f)]
+    [Range(0f, 100f)]
     public float bandwidth = 7f;
 
     [Range(0f, 1f)]

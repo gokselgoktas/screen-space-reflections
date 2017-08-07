@@ -14,6 +14,9 @@
 
 #define SSR_COLOR_NEIGHBORHOOD_SAMPLE_SPREAD 1.
 
+#define SSR_FINAL_BLEND_STATIC_FACTOR .95
+#define SSR_FINAL_BLEND_DYNAMIC_FACTOR .7
+
 struct Input
 {
     float4 vertex : POSITION;
@@ -380,7 +383,13 @@ float4 reproject(in Varyings input) : SV_Target
     float4 history = _History.SampleLevel(sampler_History, uv, 0.);
     history = clamp(history, minimum, maximum);
 
-    return lerp(color, history, .95);
+    color.a = saturate(smoothstep(0.002 * _MainTex_TexelSize.z, 0.0035 * _MainTex_TexelSize.z, length(motion)));
+
+    float weight = clamp(lerp(SSR_FINAL_BLEND_STATIC_FACTOR, SSR_FINAL_BLEND_DYNAMIC_FACTOR,
+        history.a * 100.), SSR_FINAL_BLEND_DYNAMIC_FACTOR, SSR_FINAL_BLEND_STATIC_FACTOR);
+
+    color.a *= .85;
+    return lerp(color, history, weight);
 }
 
 float4 blur(in Varyings input) : SV_Target
@@ -416,7 +425,8 @@ float4 composite(in Varyings input) : SV_Target
 
     float4 test = _Test.SampleLevel(sampler_Test, input.uv, 0.);
 
-    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * _BlurPyramidLODCount * test.z + .5);
+    // _BlurPyramidLODCount needs to be clamped after nudge
+    float4 resolve = _Resolve.SampleLevel(sampler_Resolve, input.uv, SmoothnessToRoughness(gbuffer1.a) * (_BlurPyramidLODCount - 2.) * test.z + 1.);
     float confidence = saturate(2. * dot(-eye, normalize(reflect(-eye, normal))));
 
     UnityLight light;
