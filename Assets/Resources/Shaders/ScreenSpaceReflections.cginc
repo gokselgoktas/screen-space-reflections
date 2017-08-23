@@ -118,6 +118,9 @@ float _AspectRatio;
 int _MaximumIterationCount;
 int _BinarySearchIterationCount;
 
+Texture2D _Source;
+SamplerState sampler_Source;
+
 Varyings vertex(in Input input)
 {
     Varyings output;
@@ -338,9 +341,9 @@ float4 resolve(in Varyings input) : SV_Target
     float4 test = _Test.Load(int3((int2) (input.uv * _Test_TexelSize.zw), 0));
 
     if (test.w == 0.)
-        return _MainTex.Sample(sampler_MainTex, input.uv);
+        return _Source.Sample(sampler_Source, input.uv);
 
-    float4 color = _MainTex.SampleLevel(sampler_MainTex, test.xy, 0.);
+    float4 color = _Source.SampleLevel(sampler_Source, test.xy, 0.);
 
     float confidence = test.w * attenuate(test.xy) * vignette(test.xy);
 
@@ -408,7 +411,7 @@ float4 composite(in Varyings input) : SV_Target
     float z = _CameraDepthTexture.SampleLevel(sampler_CameraDepthTexture, input.uv, 0.).r;
 
     if (Linear01Depth(z) > .999)
-		return _MainTex.Sample(sampler_MainTex, input.uv);
+		return _Source.Sample(sampler_Source, input.uv);
 
     float4 gbuffer0 = _CameraGBufferTexture0.Sample(sampler_CameraGBufferTexture0, input.uv);
     float4 gbuffer1 = _CameraGBufferTexture1.Sample(sampler_CameraGBufferTexture1, input.uv);
@@ -442,7 +445,7 @@ float4 composite(in Varyings input) : SV_Target
 
     float4 reflectionProbes = _CameraReflectionsTexture.Sample(sampler_CameraReflectionsTexture, input.uv);
 
-    float4 color = _MainTex.Sample(sampler_MainTex, input.uv);
+    float4 color = _Source.Sample(sampler_Source, input.uv);
     color.rgb = max(0., color.rgb - reflectionProbes.rgb);
 
     float fade = 1. - resolve.a * _DistanceFade;

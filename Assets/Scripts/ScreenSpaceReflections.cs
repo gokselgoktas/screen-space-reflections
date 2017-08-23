@@ -1,7 +1,8 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [ExecuteInEditMode]
-[RequireComponent(typeof (Camera))]
+[RequireComponent(typeof(Camera))]
 public class ScreenSpaceReflections : MonoBehaviour
 {
     [Range(1, 1024)]
@@ -110,13 +111,31 @@ public class ScreenSpaceReflections : MonoBehaviour
         }
     }
 
+    private CommandBuffer m_CommandBuffer;
+    private CommandBuffer commandBuffer
+    {
+        get
+        {
+            if (m_CommandBuffer == null)
+            {
+                m_CommandBuffer = new CommandBuffer();
+                m_CommandBuffer.name = "Screen-space Reflections";
+            }
+
+            return m_CommandBuffer;
+        }
+    }
+
     private RenderTexture m_BackFaceDepthTexture;
 
     private RenderTexture m_Test;
     private RenderTexture m_Resolve;
     private RenderTexture m_History;
 
-    private RenderTexture[] m_Temporaries;
+    private RenderTargetIdentifier[] m_Identifiers;
+    private int[] m_Temporaries;
+
+    private CameraEvent m_CameraEvent = CameraEvent.AfterImageEffectsOpaque;
 
     void OnEnable()
     {
@@ -124,7 +143,7 @@ public class ScreenSpaceReflections : MonoBehaviour
         enabled = false;
 #endif
 
-        camera.depthTextureMode = DepthTextureMode.Depth;
+        camera.depthTextureMode = DepthTextureMode.Depth | DepthTextureMode.MotionVectors;
     }
 
     void OnDisable()
@@ -152,6 +171,8 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_History.Release();
             m_History = null;
         }
+
+        camera.RemoveCommandBuffer(m_CameraEvent, commandBuffer);
     }
 
     void OnPreCull()
@@ -172,14 +193,23 @@ public class ScreenSpaceReflections : MonoBehaviour
         backFaceCamera.Render();
     }
 
-    [ImageEffectOpaque]
-    void OnRenderImage(RenderTexture source, RenderTexture destination)
+    void OnPreRender()
     {
-        int size = (int) Mathf.NextPowerOfTwo(Mathf.Max(source.width, source.height));
-        int lodCount = (int) Mathf.Floor(Mathf.Log(size, 2f) - 3f) - 3;
+        int size = (int)Mathf.NextPowerOfTwo(Mathf.Max(camera.pixelWidth, camera.pixelHeight));
+        int lodCount = (int)Mathf.Floor(Mathf.Log(size, 2f) - 3f) - 3;
 
         int testSize = size >> rayMarchingDownsampleAmount;
         int resolveSize = size >> resolveDownsampleAmount;
+
+        if (m_Identifiers == null)
+            m_Identifiers = new RenderTargetIdentifier[3];
+
+        if (m_Temporaries == null)
+        {
+            m_Temporaries = new int[2];
+            m_Temporaries[0] = Shader.PropertyToID("__Temporary_SSR_0001");
+            m_Temporaries[1] = Shader.PropertyToID("__Temporary_SSR_0002");
+        }
 
         if (m_Test == null || (m_Test.width != testSize || m_Test.height != testSize))
         {
@@ -192,6 +222,8 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_Test.Create();
 
             m_Test.hideFlags = HideFlags.HideAndDontSave;
+
+            m_Identifiers[0] = new RenderTargetIdentifier(m_Test);
         }
 
         if (m_Resolve == null || (m_Resolve.width != resolveSize || m_Resolve.height != resolveSize))
@@ -208,6 +240,8 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_Resolve.Create();
 
             m_Resolve.hideFlags = HideFlags.HideAndDontSave;
+
+            m_Identifiers[1] = new RenderTargetIdentifier(m_Resolve);
         }
 
         if (m_History == null || (m_History.width != resolveSize || m_History.height != resolveSize))
@@ -221,16 +255,14 @@ public class ScreenSpaceReflections : MonoBehaviour
             m_History.Create();
 
             m_History.hideFlags = HideFlags.HideAndDontSave;
+
+            m_Identifiers[2] = new RenderTargetIdentifier(m_History);
         }
 
         if (m_BackFaceDepthTexture)
             material.SetTexture("_CameraBackFaceDepthTexture", m_BackFaceDepthTexture);
 
         material.SetTexture("_Noise", noise);
-
-        material.SetTexture("_Test", m_Test);
-        material.SetTexture("_Resolve", m_Resolve);
-        material.SetTexture("_History", m_History);
 
         Matrix4x4 screenSpaceProjectionMatrix = new Matrix4x4();
 
@@ -257,23 +289,29 @@ public class ScreenSpaceReflections : MonoBehaviour
         material.SetFloat("_MaximumMarchDistance", maximumMarchDistance);
         material.SetFloat("_BlurPyramidLODCount", lodCount);
 
-        material.SetFloat("_AspectRatio", (float) source.height / (float) source.width);
+        material.SetFloat("_AspectRatio", (float)camera.pixelHeight / (float)camera.pixelWidth);
 
         material.SetInt("_MaximumIterationCount", maximumIterationCount);
         material.SetInt("_BinarySearchIterationCount", binarySearchIterationCount);
 
-        if (m_Temporaries == null)
-            m_Temporaries = new RenderTexture[2];
+        camera.RemoveCommandBuffer(m_CameraEvent, commandBuffer);
+        commandBuffer.Clear();
 
-        m_Temporaries[0] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
+        commandBuffer.SetGlobalTexture("_Test", m_Identifiers[0]);
+        commandBuffer.SetGlobalTexture("_Resolve", m_Identifiers[1]);
+        commandBuffer.SetGlobalTexture("_History", m_Identifiers[2]);
 
-        Graphics.Blit(source, m_Test, material, (int) Pass.Test);
-        Graphics.Blit(source, m_Temporaries[0], material, (int) Pass.Resolve);
-        Graphics.Blit(m_Temporaries[0], m_Resolve, material, (int) Pass.Reproject);
+        commandBuffer.SetGlobalTexture("_Source", BuiltinRenderTextureType.CameraTarget);
 
-        RenderTexture.ReleaseTemporary(m_Temporaries[0]);
+        commandBuffer.GetTemporaryRT(m_Temporaries[0], resolveSize, resolveSize, 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf);
 
-        Graphics.CopyTexture(m_Resolve, 0, 0, m_History, 0, 0);
+        commandBuffer.Blit(null, m_Identifiers[0], material, (int)Pass.Test);
+        commandBuffer.Blit(null, m_Temporaries[0], material, (int)Pass.Resolve);
+        commandBuffer.Blit(m_Temporaries[0], m_Identifiers[1], material, (int)Pass.Reproject);
+
+        commandBuffer.ReleaseTemporaryRT(m_Temporaries[0]);
+
+        commandBuffer.CopyTexture(m_Identifiers[1], 0, 0, m_Identifiers[2], 0, 0);
 
         for (int i = 1; i < lodCount; ++i)
         {
@@ -282,24 +320,36 @@ public class ScreenSpaceReflections : MonoBehaviour
             if (resolveSize == 0)
                 resolveSize = 1;
 
-            m_Temporaries[0] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
-            m_Temporaries[1] = RenderTexture.GetTemporary(resolveSize, resolveSize, 0, RenderTextureFormat.ARGBHalf);
+            commandBuffer.GetTemporaryRT(m_Temporaries[0], resolveSize, resolveSize, 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf);
+            commandBuffer.GetTemporaryRT(m_Temporaries[1], resolveSize, resolveSize, 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf);
 
-            material.SetFloat("_LOD", (float) i - 1f);
+            commandBuffer.SetGlobalFloat("_LOD", (float)i - 1f);
 
-            material.SetVector("_BlurDirection", Vector2.right);
-            Graphics.Blit(m_Resolve, m_Temporaries[0], material, (int) Pass.Blur);
+            commandBuffer.SetGlobalVector("_BlurDirection", Vector2.right);
+            commandBuffer.Blit(m_Identifiers[1], m_Temporaries[0], material, (int)Pass.Blur);
 
-            material.SetVector("_BlurDirection", Vector2.down);
-            Graphics.Blit(m_Temporaries[0], m_Temporaries[1], material, (int) Pass.Blur);
+            commandBuffer.SetGlobalVector("_BlurDirection", Vector2.down);
+            commandBuffer.Blit(m_Temporaries[0], m_Temporaries[1], material, (int)Pass.Blur);
 
-            Graphics.CopyTexture(m_Temporaries[1], 0, 0, m_Resolve, 0, i);
+            commandBuffer.CopyTexture(m_Temporaries[1], 0, 0, m_Identifiers[1], 0, i);
 
-            RenderTexture.ReleaseTemporary(m_Temporaries[0]);
-            RenderTexture.ReleaseTemporary(m_Temporaries[1]);
+            commandBuffer.ReleaseTemporaryRT(m_Temporaries[0]);
+            commandBuffer.ReleaseTemporaryRT(m_Temporaries[1]);
         }
 
-        Graphics.Blit(source, destination, material, (int) Pass.Composite);
+        // Shitty command-buffer builtin texture routing leads us to do an additional, completely useless and unnecessary allocation and blit...
+        // Something needs to be done... It's quite annoying
+
+        resolveSize = size >> resolveDownsampleAmount;
+        commandBuffer.GetTemporaryRT(m_Temporaries[0], resolveSize, resolveSize, 0, FilterMode.Bilinear, RenderTextureFormat.ARGBHalf);
+
+        commandBuffer.Blit(null, m_Temporaries[0], material, (int)Pass.Composite);
+        commandBuffer.SetGlobalTexture("_Source", m_Temporaries[0]);
+        commandBuffer.Blit(m_Temporaries[0], BuiltinRenderTextureType.CameraTarget);
+
+        commandBuffer.ReleaseTemporaryRT(m_Temporaries[0]);
+
+        camera.AddCommandBuffer(m_CameraEvent, commandBuffer);
     }
 
     void OnPostRender()
